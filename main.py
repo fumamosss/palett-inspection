@@ -19,7 +19,7 @@ from camera_capture import capture_photos
 # ============================================
 DISTANCE_THRESHOLD = 800  # мм. Если <= этого значения — объект перед датчиком.
 DETECT_TIME = 1.5         # сек. Объект должен быть ближе порога столько, чтобы считать палетту.
-COOLDOWN_TIME = 5.0       # сек. После фотки — объект должен уйти на > порога столько, чтобы ловить новый.
+COOLDOWN_TIME = 2.0       # сек. После фотки — объект должен уйти на > порога столько, чтобы ловить новый.
 
 # Состояния
 IDLE = "IDLE"
@@ -51,6 +51,8 @@ def inspect_pallet():
     state_start = time.time()
     print()
 
+    last_print = 0
+
     try:
         while True:
             dist = get_distance()
@@ -59,6 +61,11 @@ def inspect_pallet():
             if dist is None:
                 time.sleep(0.05)
                 continue
+
+            # Печатаем расстояние каждые 0.5 сек
+            if now - last_print >= 0.5:
+                print(f"  расстояние: {dist} мм  [{state}]")
+                last_print = now
 
             elapsed = now - state_start
 
