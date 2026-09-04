@@ -56,7 +56,7 @@ def _read8(reg):
 
 def _read2(reg):
     ok, d = _stream([I2C_W, (reg >> 8) & 0xFF, reg & 0xFF], 2)
-    return (d[1] << 8) | d[0] if ok and len(d) >= 2 else None
+    return (d[0] << 8) | d[1] if ok and len(d) >= 2 else None
 
 
 def _write8(reg, val):
