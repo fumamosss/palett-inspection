@@ -1,0 +1,14 @@
+# Виртуальное окружение
+.venv/
+venv/
+
+# Снятые фото
+captures/
+
+# Python
+__pycache__/
+*.pyc
+
+# Системное
+.DS_Store
+Thumbs.db
