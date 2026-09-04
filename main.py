@@ -52,8 +52,6 @@ def inspect_pallet():
     state_start = time.time()
     print()
 
-    last_print = 0
-
     try:
         while True:
             dist = get_distance()
@@ -62,11 +60,6 @@ def inspect_pallet():
             if dist is None:
                 time.sleep(0.5)
                 continue
-
-            # Печатаем расстояние каждые 0.5 сек
-            if now - last_print >= 0.5:
-                print(f"  {dist}  [{state}]")
-                last_print = now
 
             elapsed = now - state_start
 
