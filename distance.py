@@ -80,14 +80,16 @@ def open_distance() -> bool:
         return False
 
     _write_block(0x002D, _INIT_SEQ)
-    # Long Range (изменяем VCSEL period A)
-    _write8(0x0060, 0x0F)
-    _write8(0x0063, 0x0D)
-    _write8(0x0069, 0xB8)
-    _write8(0x0078, 0x0F)
-    _write8(0x0079, 0x0D)
-    _write8(0x007A, 0x0E)
-    _write8(0x007B, 0x0E)
+    # Long Range: timing budget + VCSEL
+    _write8(0x005E, 0x01)   # RANGE_CONFIG__TIMEOUT_MACROP_A_HI (Long Range)
+    _write8(0x0061, 0x01)   # RANGE_CONFIG__TIMEOUT_MACROP_B_HI (Long Range)
+    _write8(0x0060, 0x0F)   # VCSEL_PERIOD_A
+    _write8(0x0063, 0x0D)   # VCSEL_PERIOD_B
+    _write8(0x0069, 0xB8)   # VALID_PHASE_HIGH
+    _write8(0x0078, 0x0F)   # WOI_SD0 high
+    _write8(0x0079, 0x0D)   # WOI_SD0 low
+    _write8(0x007A, 0x0E)   # INITIAL_PHASE_SD0 high
+    _write8(0x007B, 0x0E)   # INITIAL_PHASE_SD0 low
     _write8(0x0087, 0x40)
     t = 0
     while _read8(0x0089) != 0x09 and t < 200:
