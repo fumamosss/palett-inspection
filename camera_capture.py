@@ -15,8 +15,8 @@ import cv2
 
 CAPTURE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "captures")
 CAMERAS = [0, 1]
-CAPTURE_DELAY = 1.0
-READ_RETRIES = 5
+CAPTURE_DELAY = 2.0
+READ_RETRIES = 10
 WIDTH, HEIGHT = 1280, 960
 
 
