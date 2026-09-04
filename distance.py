@@ -80,9 +80,6 @@ def open_distance() -> bool:
         return False
 
     _write_block(0x002D, _INIT_SEQ)
-    # ROI 8x8 SPAD — средний конус
-    _write8(0x007F, 0x77)   # центр ROI
-    _write8(0x0080, 0x77)   # размер ROI: X=7, Y=7 → 8x8
     _write8(0x0087, 0x40)
     t = 0
     while _read8(0x0089) != 0x09 and t < 200:
