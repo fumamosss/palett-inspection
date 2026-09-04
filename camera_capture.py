@@ -29,13 +29,15 @@ def fourcc_to_str(fourcc: int) -> str:
 
 
 def open_camera(index: int) -> cv2.VideoCapture | None:
-    cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
-    if not cap.isOpened():
+    """Открыть камеру. Пробуем DSHOW, затем MSMF (разные камеры разные бэкенды)."""
+    for backend in (cv2.CAP_DSHOW, cv2.CAP_MSMF):
+        cap = cv2.VideoCapture(index, backend)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
+            return cap
         cap.release()
-        return None
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
-    return cap
+    return None
 
 
 def capture_photos() -> list[str]:
