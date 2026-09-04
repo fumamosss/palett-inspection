@@ -35,10 +35,21 @@ def inspect_pallet():
     if not open_distance():
         print("Дальномер не найден. Проверьте подключение.")
         return
-    print("Дальномер готов.\n")
+    print("Дальномер готов.")
+
+    # Ждём, пока перед датчиком никто не стоит (дистанция > порога)
+    print("Ожидание очищения пространства...", end="", flush=True)
+    while True:
+        dist = get_distance()
+        if dist is not None and dist > DISTANCE_THRESHOLD:
+            print(f" OK ({dist} мм)")
+            break
+        print(".", end="", flush=True)
+        time.sleep(0.2)
 
     state = IDLE
     state_start = time.time()
+    print()
 
     try:
         while True:
