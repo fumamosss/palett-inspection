@@ -59,7 +59,7 @@ def inspect_pallet():
             now = time.time()
 
             if dist is None:
-                time.sleep(0.05)
+            time.sleep(0.5)
                 continue
 
             # Печатаем расстояние каждые 0.5 сек
