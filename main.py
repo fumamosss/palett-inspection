@@ -13,6 +13,7 @@ import time
 
 from distance import open_distance, get_distance, close_distance
 from camera_capture import capture_photos
+from llm import analyze_photos
 
 # ============================================
 # НАСТРОЙКИ
@@ -89,6 +90,12 @@ def inspect_pallet():
                     photos = capture_photos()
                     if photos:
                         print(f"  Сохранены: {photos}")
+                        # Отправка в нейронку
+                        try:
+                            result = analyze_photos(photos)
+                            print(f"  Анализ: {result}")
+                        except Exception as e:
+                            print(f"  Ошибка нейронки: {e}")
                     else:
                         print("  Фото не сохранены")
                     state = COOLDOWN
