@@ -1,8 +1,12 @@
 """Основная логика проверки палетты.
 
-Использует:
-  - distance.py — дальномер VL53L1X
-  - camera_capture.py — захват фото с двух камер
+Логика:
+  - Дальномер следит за расстоянием.
+  - Когда объект появляется (расстояние падает ниже порога) — камеры делают снимок.
+  - Одно фото за одно появление (не спамит).
+
+Запуск:  python main.py
+Выход:   Ctrl+C
 """
 
 import time
@@ -10,43 +14,46 @@ import time
 from distance import open_distance, get_distance, close_distance
 from camera_capture import capture_photos
 
-# Порог расстояния (мм). Если дальномер показывает меньше — палетта наклонена.
-DISTANCE_THRESHOLD = 1000
+# ============================================
+# НАСТРОЙКИ
+# ============================================
+DISTANCE_THRESHOLD = 800  # мм. Если <= этого значения — объект перед датчиком.
+COOLDOWN = 3.0            # сек. Пауза между срабатываниями (чтобы не фоткать 100 раз).
 
 
 def inspect_pallet():
     """Основной цикл проверки."""
+    print(f"Порог расстояния: {DISTANCE_THRESHOLD} мм")
+    print(f"Кулдаун: {COOLDOWN} сек")
     print("Инициализация дальномера...")
+
     if not open_distance():
         print("Дальномер не найден. Проверьте подключение.")
         return
     print("Дальномер готов.\n")
 
+    last_capture_time = 0
     try:
         while True:
             dist = get_distance()
 
-            if dist is not None and dist < DISTANCE_THRESHOLD:
-                # Палетта близко / наклонена — нужна проверка
-                print(f"Обнаружено расстояние {dist} мм (ниже порога {DISTANCE_THRESHOLD})")
+            if dist is None:
+                time.sleep(0.05)
+                continue
 
-                # --- Здесь выполняется логика анализа ---
-                # TODO: определение угла наклона палетты
-                # TODO: анализ обёртки плёнкой
-                # TODO: решение о необходимости вмешательства
+            now = time.time()
 
-                # Захват фото для документации / отправки в нейронку
+            if dist <= DISTANCE_THRESHOLD and (now - last_capture_time) > COOLDOWN:
+                # Объект перед датчиком — фоткаем
+                print(f"Объект обнаружен: {dist} мм")
                 photos = capture_photos()
                 if photos:
-                    print(f"Сохранены фото: {photos}")
+                    print(f"  Сохранены: {photos}")
+                else:
+                    print("  Фото не сохранены")
+                last_capture_time = now
 
-                    # TODO: отправка фото в LLM для оценки наклона
-                    # TODO: анализ ответа нейронки
-                    # TODO: логирование результата
-
-                print()
-
-            time.sleep(0.2)
+            time.sleep(0.05)
 
     except KeyboardInterrupt:
         print("\nОстановка.")
