@@ -80,9 +80,11 @@ def open_distance() -> bool:
         return False
 
     _write_block(0x002D, _INIT_SEQ)
-    # Long Range: timing budget + VCSEL
-    _write8(0x005E, 0x01)   # RANGE_CONFIG__TIMEOUT_MACROP_A_HI (Long Range)
-    _write8(0x0061, 0x01)   # RANGE_CONFIG__TIMEOUT_MACROP_B_HI (Long Range)
+    # Long Range: timing budget (500мс = максимальная дальность) + VCSEL
+    _write8(0x005E, 0x04)   # RANGE_CONFIG__TIMEOUT_MACROP_A_HI
+    _write8(0x005F, 0x8F)   # RANGE_CONFIG__TIMEOUT_MACROP_A_LO
+    _write8(0x0061, 0x04)   # RANGE_CONFIG__TIMEOUT_MACROP_B_HI
+    _write8(0x0062, 0xA4)   # RANGE_CONFIG__TIMEOUT_MACROP_B_LO
     _write8(0x0060, 0x0F)   # VCSEL_PERIOD_A
     _write8(0x0063, 0x0D)   # VCSEL_PERIOD_B
     _write8(0x0069, 0xB8)   # VALID_PHASE_HIGH
