@@ -39,21 +39,22 @@ def open_camera(index: int) -> cv2.VideoCapture | None:
 
 
 def capture_photos() -> list[str]:
-    """Сделать снимки со всех камер. Возвращает список путей к файлам."""
+    """Сделать снимки со всех камер последовательно (~3 сек на 2 камеры)."""
     _ensure_dir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     paths = []
 
-    for i, cam_idx in enumerate(CAMERAS):
+    for cam_idx in CAMERAS:
+        # открываем камеру
         cap = open_camera(cam_idx)
         if cap is None:
             print(f"[камера {cam_idx}] не открылась")
             continue
 
-        # прогрев (пропускаем первые кадры)
+        # прогрев — пропускаем первые кадры (USB-шина стабилизируется)
         for _ in range(READ_RETRIES):
             cap.read()
 
+        # основной кадр
         ret, frame = cap.read()
         cap.release()
 
@@ -61,14 +62,15 @@ def capture_photos() -> list[str]:
             print(f"[камера {cam_idx}] кадр не прочитан")
             continue
 
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"cam{cam_idx}_{timestamp}.jpg"
         path = os.path.join(CAPTURE_DIR, filename)
         cv2.imwrite(path, frame)
         paths.append(path)
-        print(f"[камера {cam_idx}] сохранено: {path}")
+        print(f"[камера {cam_idx}] ok")
 
-        if cam_idx != CAMERAS[-1]:
-            time.sleep(CAPTURE_DELAY)
+        # пауза перед следующей камерой (USB-шина не держит две сразу)
+        time.sleep(CAPTURE_DELAY)
 
     return paths
 
