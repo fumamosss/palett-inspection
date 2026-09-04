@@ -106,17 +106,22 @@ def open_distance() -> bool:
 
 
 def get_distance() -> int | None:
-    """Прочитать расстояние в мм. None = нет данных."""
+    """Прочитать расстояние. None = нет данных / нет цели."""
     if not _initialized:
         return None
-    _write8(0x0087, 0x40)
+    _write8(0x0087, 0x40)  # старт
     t = 0
     while _read8(0x0089) != 0x09 and t < 200:
         time.sleep(0.01)
         t += 1
-    dist = _read2(0x0096)
-    _write8(0x0086, 0x01)
-    return dist // 10 if dist is not None else None
+    # Читаем ТОЛЬКО если статус = 0x09 (успех)
+    if _read8(0x0089) == 0x09:
+        dist = _read2(0x0096)
+        _write8(0x0086, 0x01)
+        return dist // 10 if dist is not None else None
+    else:
+        _write8(0x0086, 0x01)
+        return None
 
 
 def close_distance():
