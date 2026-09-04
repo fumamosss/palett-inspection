@@ -42,7 +42,7 @@ def inspect_pallet():
     while True:
         dist = get_distance()
         if dist is not None and dist > DISTANCE_THRESHOLD:
-            print(f" OK ({dist} мм)")
+            print(f" OK ({dist})")
             break
         print(".", end="", flush=True)
         time.sleep(0.2)
@@ -59,12 +59,12 @@ def inspect_pallet():
             now = time.time()
 
             if dist is None:
-            time.sleep(0.5)
+                time.sleep(0.5)
                 continue
 
             # Печатаем расстояние каждые 0.5 сек
             if now - last_print >= 0.5:
-                print(f"  расстояние: {dist} мм  [{state}]")
+                print(f"  {dist}  [{state}]")
                 last_print = now
 
             elapsed = now - state_start
