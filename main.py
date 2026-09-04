@@ -18,13 +18,18 @@ from camera_capture import capture_photos
 # НАСТРОЙКИ
 # ============================================
 DISTANCE_THRESHOLD = 800  # мм. Если <= этого значения — объект перед датчиком.
-COOLDOWN = 3.0            # сек. Пауза между срабатываниями (чтобы не фоткать 100 раз).
+DETECT_TIME = 1.5         # сек. Объект должен быть ближе порога столько, чтобы считать палетту.
+COOLDOWN_TIME = 5.0       # сек. После фотки — объект должен уйти на > порога столько, чтобы ловить новый.
+
+# Состояния
+IDLE = "IDLE"
+DETECT = "DETECT"
+COOLDOWN = "COOLDOWN"
 
 
 def inspect_pallet():
-    """Основной цикл проверки."""
-    print(f"Порог расстояния: {DISTANCE_THRESHOLD} мм")
-    print(f"Кулдаун: {COOLDOWN} сек")
+    """Основной цикл проверки с debounce."""
+    print(f"Порог: {DISTANCE_THRESHOLD} мм | Детект: {DETECT_TIME}с | Кулдаун: {COOLDOWN_TIME}с")
     print("Инициализация дальномера...")
 
     if not open_distance():
@@ -32,26 +37,52 @@ def inspect_pallet():
         return
     print("Дальномер готов.\n")
 
-    last_capture_time = 0
+    state = IDLE
+    state_start = time.time()
+
     try:
         while True:
             dist = get_distance()
+            now = time.time()
 
             if dist is None:
                 time.sleep(0.05)
                 continue
 
-            now = time.time()
+            elapsed = now - state_start
 
-            if dist <= DISTANCE_THRESHOLD and (now - last_capture_time) > COOLDOWN:
-                # Объект перед датчиком — фоткаем
-                print(f"Объект обнаружен: {dist} мм")
-                photos = capture_photos()
-                if photos:
-                    print(f"  Сохранены: {photos}")
-                else:
-                    print("  Фото не сохранены")
-                last_capture_time = now
+            if state == IDLE:
+                if dist <= DISTANCE_THRESHOLD:
+                    # Объект появился — запоминаем время, переходим в DETECT
+                    state = DETECT
+                    state_start = now
+                    print(f"[IDLE→DETECT] объект на {dist} мм")
+                # иначе — стоим в IDLE, ждём
+
+            elif state == DETECT:
+                if dist > DISTANCE_THRESHOLD:
+                    # Объект пропал до детекта — отмена
+                    state = IDLE
+                    state_start = now
+                    print(f"[DETECT→IDLE] объект пропал ({dist} мм)")
+                elif elapsed >= DETECT_TIME:
+                    # Объект держался достаточно долго — фоткаем!
+                    print(f"[DETECT] палетта подтверждена ({dist} мм) — снимаем")
+                    photos = capture_photos()
+                    if photos:
+                        print(f"  Сохранены: {photos}")
+                    else:
+                        print("  Фото не сохранены")
+                    state = COOLDOWN
+                    state_start = now
+                    print(f"[DETECT→COOLDOWN] кулдаун {COOLDOWN_TIME}с")
+
+            elif state == COOLDOWN:
+                if dist > DISTANCE_THRESHOLD and elapsed >= COOLDOWN_TIME:
+                    # Объект ушёл достаточно долго — готовы ловить новый
+                    state = IDLE
+                    state_start = now
+                    print(f"[COOLDOWN→IDLE] готов к новой палетте")
 
             time.sleep(0.05)
 
