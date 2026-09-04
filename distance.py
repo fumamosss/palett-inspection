@@ -80,6 +80,14 @@ def open_distance() -> bool:
         return False
 
     _write_block(0x002D, _INIT_SEQ)
+    # Long Range (изменяем VCSEL period A)
+    _write8(0x0060, 0x0F)
+    _write8(0x0063, 0x0D)
+    _write8(0x0069, 0xB8)
+    _write8(0x0078, 0x0F)
+    _write8(0x0079, 0x0D)
+    _write8(0x007A, 0x0E)
+    _write8(0x007B, 0x0E)
     _write8(0x0087, 0x40)
     t = 0
     while _read8(0x0089) != 0x09 and t < 200:
@@ -104,7 +112,7 @@ def get_distance() -> int | None:
         t += 1
     dist = _read2(0x0096)
     _write8(0x0086, 0x01)
-    return dist
+    return dist // 10 if dist is not None else None
 
 
 def close_distance():
