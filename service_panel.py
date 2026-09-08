@@ -86,11 +86,8 @@ class StatusBlock(Static):
         "LOST": "red",
     }
 
-    def __init__(self):
-        super().__init__()
-        self._state = None
-        self._started = None
-        self._last_dist_changed = None
+    _state = None
+    _started = None
 
     def on_mount(self):
         self.set_interval(0.1, self._tick)
@@ -126,7 +123,14 @@ class StatusBlock(Static):
 
 
 class ResultBlock(Static):
-    """Блок "Анализ": результат ИИ + спиннер при ожидании / ошибка."""
+    """Блок "Анализ": текст полей + LoadingIndicator по центру при анализе."""
+
+    _front = "—"
+    _side = "—"
+    _conf = "—"
+    _reason = "—"
+    _error = None
+    _analyzing = False
 
     def __init__(self):
         super().__init__()
@@ -135,25 +139,18 @@ class ResultBlock(Static):
         self.styles.border_title_align = "center"
         self.styles.padding = (1, 2)
 
-        self._front = "—"
-        self._side = "—"
-        self._conf = "—"
-        self._reason = "—"
-        self._error = None
-        self._analyzing = False
-
     def compose(self):
-        yield LoadingIndicator(id="result_loading")
-        yield Static(self._body(), id="result_body")
-        yield Static("", id="result_error")
+        yield LoadingIndicator()
 
     def on_mount(self):
-        self.query_one("#result_loading").display = False
-        self._render()
+        loading = self.query_one(LoadingIndicator)
+        loading.styles.height = "100%"  # спиннер по центру блока
+        loading.display = False
+        self._show_body()
 
     def set_analyzing(self, on):
         self._analyzing = on
-        self._render()
+        self._show_body()
 
     def set_result(self, result):
         self._analyzing = False
@@ -162,12 +159,12 @@ class ResultBlock(Static):
         self._side = result.get("angle_side_deg", "—")
         self._conf = result.get("confidence", "—")
         self._reason = result.get("reason", "—")
-        self._render()
+        self._show_body()
 
     def set_error(self, message):
         self._analyzing = False
         self._error = message
-        self._render()
+        self._show_body()
 
     def _body(self):
         return (f"Спереди: {self._front}°\n"
@@ -175,21 +172,15 @@ class ResultBlock(Static):
                 f"Уверенность: {self._conf}\n"
                 f"Комментарий: {self._reason}")
 
-    def _render(self):
+    def _show_body(self):
+        loading = self.query_one(LoadingIndicator)
+        loading.display = self._analyzing
         if self._analyzing:
-            self.query_one("#result_loading").display = True
-            self.query_one("#result_body").display = False
-            self.query_one("#result_error").display = False
+            self.update("")
         elif self._error is not None:
-            self.query_one("#result_loading").display = False
-            self.query_one("#result_body").display = False
-            self.query_one("#result_error").display = True
-            self.query_one("#result_error").update(Text(self._error, style="bold red"))
+            self.update(Text(self._error, style="bold red"))
         else:
-            self.query_one("#result_loading").display = False
-            self.query_one("#result_body").display = True
-            self.query_one("#result_error").display = False
-            self.query_one("#result_body").update(self._body())
+            self.update(self._body())
 
 
 class CamerasBlock(Static):
