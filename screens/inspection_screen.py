@@ -84,7 +84,7 @@ class InspectionScreen(Screen):
             except Exception:
                 pass
 
-        self.run_worker(
+        self._worker = self.run_worker(
             lambda: workers.inspection_loop(on_status, on_distance, on_camera, on_result,
                                             lambda: self.stopped),
             thread=True,
@@ -92,6 +92,12 @@ class InspectionScreen(Screen):
 
     def on_unmount(self):
         self.stopped = True
+        # Просим поток остановиться. Блокирующий вызов (съёмка/нейронка) не
+        # прерывается на середине, но как только он вернётся — цикл увидит
+        # self.stopped и выйдет, освободив дальномер в finally.
+        worker = getattr(self, "_worker", None)
+        if worker is not None:
+            worker.cancel()
 
     def action_back(self):
         self.app.pop_screen()
