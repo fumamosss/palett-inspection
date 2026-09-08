@@ -12,9 +12,10 @@ import time
 from rich import box
 from rich.table import Table
 from rich.text import Text
+from textual.containers import Vertical
 from textual.widgets import Digits, LoadingIndicator, Static
 
-from camera_capture import CAMERAS, capture_photos
+from camera_capture import CAMERAS
 from screens import workers
 from settings import Settings
 
@@ -45,14 +46,21 @@ class DistanceBlock(Static):
         workers.distance_loop(self._update, lambda: self.stopped)
 
     def _update(self, dist):
-        self._set_value("нет данных" if dist is None else str(dist))
+        """Вызывается из фонового потока дальномера — маришалим на главный."""
+        self.app.call_from_thread(self._set_value, self._fmt(dist))
 
     def set_distance(self, dist):
-        self._set_value("нет данных" if dist is None else str(dist))
+        """Вызывается с главного потока (инспекция через call_from_thread)."""
+        self._set_value(self._fmt(dist))
+
+    @staticmethod
+    def _fmt(dist):
+        return "нет данных" if dist is None else str(dist)
 
     def _set_value(self, text):
+        """Только на главном потоке."""
         try:
-            self.app.call_from_thread(self.query_one(Digits).update, text)
+            self.query_one(Digits).update(text)
         except Exception:
             # экран уже закрыт — нечего обновлять
             pass
@@ -123,8 +131,13 @@ class StatusBlock(Static):
         return label
 
 
-class ResultBlock(Static):
-    """Блок "Анализ": текст полей + LoadingIndicator по центру при анализе."""
+class ResultBlock(Vertical):
+    """Блок "Анализ": спиннер при анализе, иначе тело результата/ошибка.
+
+    Два дочерних виджета: LoadingIndicator (спиннер) и Static(id="body").
+    Переключаем их display — каждый рендерится своим механизмом, без
+    смешивания composed-детей и update() на контейнере.
+    """
 
     _front = "—"
     _side = "—"
@@ -141,16 +154,17 @@ class ResultBlock(Static):
         self.styles.padding = (1, 2)
 
     def compose(self):
-        yield LoadingIndicator()
+        yield LoadingIndicator(id="analysis-loading")
+        yield Static(id="analysis-body")
 
     def on_mount(self):
-        loading = self.query_one(LoadingIndicator)
-        loading.styles.height = "100%"  # спиннер по центру блока
-        loading.display = False
+        self.query_one("#analysis-loading").styles.height = "100%"
         self._show_body()
 
     def set_analyzing(self, on):
         self._analyzing = on
+        if on:
+            self._error = None  # свежий цикл — не тащим прошлую ошибку в спиннер
         self._show_body()
 
     def set_result(self, result):
@@ -174,14 +188,15 @@ class ResultBlock(Static):
                 f"Комментарий: {self._reason}")
 
     def _show_body(self):
-        loading = self.query_one(LoadingIndicator)
+        loading = self.query_one("#analysis-loading")
+        body = self.query_one("#analysis-body")
         loading.display = self._analyzing
-        if self._analyzing:
-            self.update("")
-        elif self._error is not None:
-            self.update(Text(self._error, style="bold red"))
-        else:
-            self.update(self._body())
+        body.display = not self._analyzing
+        if not self._analyzing:
+            if self._error is not None:
+                body.update(Text(self._error, style="bold red"))
+            else:
+                body.update(self._body())
 
 
 class CamerasBlock(Static):
@@ -273,5 +288,9 @@ class CamerasBlock(Static):
             start = self._starts.pop(cam_idx, None)
             duration = (time.monotonic() - start) if start is not None else 0.0
             self._durations[cam_idx] = duration
+            # переносим завершённый таймер в "Last time" (для инспекции, где
+            # restart() не используется, колонка иначе вечно была бы "—")
+            if cam_idx not in self._last_times:
+                self._last_times[cam_idx] = duration
             self._statuses[cam_idx] = (status, detail)
         self._redraw()
