@@ -183,6 +183,53 @@ async def resultblock_run():
               await _render_children(rb, pilot), "rb._error=", rb._error)
 
 
+def _center_ratio(block, child):
+    d = block.region
+    g = child.region
+    h_off = g.x - d.x
+    v_off = g.y - d.y
+    if d.width == 0 or d.height == 0:
+        return None, None
+    cx = (g.width / 2 + h_off) / d.width
+    cy = (g.height / 2 + v_off) / d.height
+    return cx, cy
+
+
+async def distance_center_run():
+    """Verify DistanceBlock digits are centered (h+v) across values and widths."""
+    from service_panel import DistanceBlock
+    values = ["120", "7", "-42", "нет данных"]
+
+    for width, height in [(100, 40), (120, 30), (80, 24)]:
+        async with App().run_test(size=(width, height)) as pilot:
+            blk = DistanceBlock(auto_loop=False)
+            await pilot.app.mount(blk)
+            await pilot.pause()
+            dg = blk.query_one("Digits")
+            print(f"--- DistanceBlock standalone @ {width}x{height} (block {blk.region.size}) ---")
+            for v in values:
+                blk.set_distance(v if v != "нет данных" else None)
+                await pilot.pause()
+                cx, cy = _center_ratio(blk, dg)
+                ok = bool(cx and cy and abs(cx - 0.5) < 0.02 and abs(cy - 0.5) < 0.02)
+                # render the digits' own content to check internal text align
+                from rich.console import Console
+                import io
+                buf = io.StringIO()
+                Console(file=buf, width=24, force_terminal=False, color_system=None,
+                        highlight=False).print(dg.render())
+                text = "".join(buf.getvalue().splitlines())
+                txt_stripped = text.strip()
+                inside = text.rstrip("\n")
+                left_pad = len(inside) - len(inside.lstrip())
+                right_pad = len(inside.rstrip()) - len(text[:len(inside.rstrip())])
+                print(f"  value={v!r:12} digits_region={dg.region} "
+                      f"text_align={dg.styles.text_align} "
+                      f"cx={cx:.2f} cy={cy:.2f} left_pad={left_pad} "
+                      f"{'OK' if ok else 'CHECK'}")
+
+
 if __name__ == "__main__":
     asyncio.run(screen_run())
     asyncio.run(resultblock_run())
+    asyncio.run(distance_center_run())
