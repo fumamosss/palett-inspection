@@ -7,7 +7,7 @@ CamerasBlock умеет снимать сам: при монтировании �
 обновляет свою таблицу. Параметр auto_capture=False отключает это.
 """
 
-from datetime import datetime
+import time
 
 from rich.text import Text
 from textual.widgets import DataTable, Digits, Static
@@ -73,6 +73,8 @@ class CamerasBlock(Static):
 
     def __init__(self, auto_capture=True):
         self.auto_capture = auto_capture
+        self._starts = {}   # cam -> monotonic time начала съёмки
+        self._durations = {}  # cam -> секунды последней съёмки
         super().__init__()
         self.border_title = "Камеры"
         self.styles.border = ("round", "cyan")
@@ -86,23 +88,33 @@ class CamerasBlock(Static):
         table = self.query_one(DataTable)
         table.cursor_type = "none"
         self.col_num = table.add_column("#", width=4)
-        self.col_status = table.add_column("Status", width=18)
-        self.col_spacer = table.add_column("", width=20)
+        self.col_status = table.add_column("Status", width=60)
         self.col_last = table.add_column("Last time", width=14)
-        self.col_time = table.add_column("Time", width=12)
+        self.col_time = table.add_column("Time", width=14)
         self.rows = {}
         for cam_idx in CAMERAS:
             self.rows[cam_idx] = table.add_row(
                 str(cam_idx),
                 Text("OK", style=self.STATUS_STYLE["OK"]),
-                "", "—", "—",
+                "—", "—",
             )
-        self.set_interval(1.0, self._tick)
         if self.auto_capture:
             self.run_worker(self._capture, thread=True)
 
     def _capture(self):
         workers.cameras_capture(self._on_status)
+
+    def restart(self):
+        """Перезапустить съёмку: прошлые Time уходят в Last time."""
+        table = self.query_one(DataTable)
+        for cam_idx in CAMERAS:
+            duration = self._durations.pop(cam_idx, None)
+            table.update_cell(self.rows[cam_idx], self.col_last,
+                              f"{duration:.1f} c" if duration is not None else "—")
+            table.update_cell(self.rows[cam_idx], self.col_time, "—")
+            table.update_cell(self.rows[cam_idx], self.col_status,
+                              Text("OK", style=self.STATUS_STYLE["OK"]))
+        self.run_worker(self._capture, thread=True)
 
     def _on_status(self, cam_idx, status, detail):
         try:
@@ -112,16 +124,17 @@ class CamerasBlock(Static):
 
     def _apply_status(self, cam_idx, status, detail):
         table = self.query_one(DataTable)
-        text = status if not detail else f"{status}: {detail}"
-        table.update_cell(self.rows[cam_idx], self.col_status, Text(text, style=self.STATUS_STYLE[status]))
-        now = datetime.now().strftime("%H:%M:%S")
-        table.update_cell(self.rows[cam_idx], self.col_last, now)
-
-    def _tick(self):
-        now = datetime.now().strftime("%H:%M:%S")
-        table = self.query_one(DataTable)
-        for cam_idx in CAMERAS:
-            table.update_cell(self.rows[cam_idx], self.col_time, now)
+        if status == "TAKING":
+            self._starts[cam_idx] = time.monotonic()
+            text = "TAKING"
+        else:
+            start = self._starts.pop(cam_idx, None)
+            duration = (time.monotonic() - start) if start is not None else 0.0
+            self._durations[cam_idx] = duration
+            table.update_cell(self.rows[cam_idx], self.col_time, f"{duration:.1f} c")
+            text = status if not detail else f"{status}: {detail}"
+        table.update_cell(self.rows[cam_idx], self.col_status,
+                          Text(text, style=self.STATUS_STYLE[status]))
 
 
 class ServicePanel(Static):
