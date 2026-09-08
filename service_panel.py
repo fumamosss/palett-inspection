@@ -9,6 +9,7 @@ CamerasBlock умеет снимать сам: при монтировании �
 
 import time
 
+from rich import box
 from rich.table import Table
 from rich.text import Text
 from textual.widgets import Digits, Static
@@ -75,7 +76,8 @@ class CamerasBlock(Static):
     def __init__(self, auto_capture=True):
         self.auto_capture = auto_capture
         self._starts = {}   # cam -> monotonic time начала съёмки
-        self._durations = {}  # cam -> секунды последней съёмки
+        self._durations = {}  # cam -> секунды съёмки (в колонку Time)
+        self._last_times = {}  # cam -> длительность прошлого запуска (в колонку Last time)
         self._statuses = {}   # cam -> (status, detail)
         super().__init__()
         self.border_title = "Камеры"
@@ -87,11 +89,16 @@ class CamerasBlock(Static):
         for cam_idx in CAMERAS:
             self._statuses[cam_idx] = ("OK", "")
         self._redraw()
+        self.set_interval(0.5, self._tick)
         if self.auto_capture:
             self.run_worker(self._capture, thread=True)
 
+    def _tick(self):
+        if self._starts:
+            self._redraw()
+
     def _redraw(self):
-        table = Table(expand=True, show_edge=False, pad_edge=False)
+        table = Table(expand=True, box=box.SIMPLE, show_edge=False, pad_edge=False)
         table.add_column("#", justify="left", ratio=1)
         table.add_column("Status", ratio=8)
         table.add_column("Last time", justify="right", ratio=2)
@@ -101,13 +108,18 @@ class CamerasBlock(Static):
             status, detail = self._statuses.get(cam_idx, ("OK", ""))
             text = status if not detail else f"{status}: {detail}"
             style = self.STATUS_STYLE.get(status, "bold green")
+
             last = "—"
-            if cam_idx in self._durations:
-                last = f"{self._durations[cam_idx]:.1f} c"
-            duration = self._starts.get(cam_idx)
+            if cam_idx in self._last_times:
+                last = f"{self._last_times[cam_idx]:.1f} c"
+
             time_val = "—"
-            if duration is not None:
-                time_val = f"{time.monotonic() - duration:.1f} c"
+            start = self._starts.get(cam_idx)
+            if start is not None:
+                time_val = f"{time.monotonic() - start:.1f} c"
+            elif cam_idx in self._durations:
+                time_val = f"{self._durations[cam_idx]:.1f} c"
+
             table.add_row(
                 str(cam_idx),
                 Text(text, style=style),
@@ -121,13 +133,10 @@ class CamerasBlock(Static):
 
     def restart(self):
         """Перезапустить съёмку: прошлые Time уходят в Last time."""
-        table_prev = self._durations
+        self._last_times = {cam: dur for cam, dur in self._durations.items()}
         self._durations = {}
+        self._starts = {}
         self._statuses = {cam: ("OK", "") for cam in CAMERAS}
-        for cam_idx in CAMERAS:
-            duration = table_prev.get(cam_idx)
-            if duration is not None:
-                self._durations[cam_idx] = duration
         self._redraw()
         self.run_worker(self._capture, thread=True)
 
