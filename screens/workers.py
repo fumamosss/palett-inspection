@@ -24,14 +24,13 @@ def _wait_clear(on_update, get_dist):
 
 
 def distance_loop(on_update, stop):
-    """Непрерывно читать дальномер, обновлять UI. stop() == True — выход."""
+    """Непрерывно читать дальномер. stop() == True — выход."""
     if not open_distance():
-        on_update(None, "Дальномер не найден", None)
+        on_update(None)
         return
     try:
         while not stop():
-            dist = get_distance()
-            on_update(dist, None, None)
+            on_update(get_distance())
             time.sleep(0.5)
     finally:
         close_distance()

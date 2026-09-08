@@ -11,15 +11,40 @@ PhotosBlock умеет снимать сам: при монтировании з
 from textual.widgets import Static
 
 from camera_capture import capture_photos
+from screens import workers
 
 
 class DistanceBlock(Static):
-    def __init__(self):
+    def __init__(self, auto_loop=True):
+        self.auto_loop = auto_loop
+        self.stopped = True
         super().__init__("Дистанция: —")
+
+    def on_mount(self):
+        if self.auto_loop:
+            self.stopped = False
+            self.run_worker(self._loop, thread=True)
+
+    def on_unmount(self):
+        self.stopped = True
+
+    def _loop(self):
+        workers.distance_loop(self._update, lambda: self.stopped)
+
+    def _update(self, dist):
+        text = "нет данных" if dist is None else f"{dist} см"
+        self._set_text(f"Дистанция: {text}")
 
     def set_distance(self, dist):
         text = "нет данных" if dist is None else f"{dist} см"
         self.update(f"Дистанция: {text}")
+
+    def _set_text(self, text):
+        try:
+            self.app.call_from_thread(self.update, text)
+        except Exception:
+            # экран уже закрыт — нечего обновлять
+            pass
 
 
 class StateBlock(Static):
@@ -67,7 +92,7 @@ class PhotosBlock(Static):
 
 class ServicePanel(Static):
     def compose(self):
-        yield DistanceBlock()
+        yield DistanceBlock(auto_loop=False)
         yield StateBlock()
         yield PhotosBlock(auto_capture=False)
 
