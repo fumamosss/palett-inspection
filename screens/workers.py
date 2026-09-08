@@ -97,7 +97,7 @@ def inspection_loop(on_status, on_distance, on_camera, on_result, stop):
             dist = get_distance()
             now = time.time()
 
-            if dist is not None and now - last_dist_sent >= 0.2:
+            if now - last_dist_sent >= 0.2:
                 last_dist_sent = now
                 on_distance(dist)
 

@@ -11,8 +11,37 @@ from screens import workers
 class InspectionScreen(Screen):
     BINDINGS = [("escape", "back", "Назад")]
 
+    DEFAULT_CSS = """
+    InspectionScreen {
+        layout: vertical;
+    }
+
+    #top-row {
+        height: 1fr;
+    }
+
+    InspectionScreen CamerasBlock {
+        width: 1fr;
+        height: 100%;
+    }
+
+    InspectionScreen DistanceBlock {
+        width: 30;
+        height: 100%;
+        content-align: center middle;
+    }
+
+    InspectionScreen StatusBlock {
+        height: 1;
+    }
+
+    InspectionScreen ResultBlock {
+        height: 1fr;
+    }
+    """
+
     def compose(self):
-        with Horizontal():
+        with Horizontal(id="top-row"):
             yield CamerasBlock(auto_capture=False)
             yield DistanceBlock(auto_loop=False)
         yield StatusBlock()
