@@ -30,6 +30,7 @@ class DistanceBlock(Static):
         self.styles.border_title_align = "center"
         self.styles.padding = (1, 2)
         self.styles.width = 30
+        self.styles.align = ("center", "middle")
 
     def compose(self):
         yield Digits("—")

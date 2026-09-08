@@ -17,18 +17,19 @@ class InspectionScreen(Screen):
     }
 
     #top-row {
-        height: 1fr;
+        /* Компактный верх: камеры+дистанция в рост своего содержимого,
+           остальное пространство уходит под блок анализа. */
+        height: auto;
     }
 
     InspectionScreen CamerasBlock {
         width: 1fr;
-        height: 100%;
     }
 
     InspectionScreen DistanceBlock {
         width: 30;
         height: 100%;
-        content-align: center middle;
+        align: center middle;
     }
 
     InspectionScreen StatusBlock {

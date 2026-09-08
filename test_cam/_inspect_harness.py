@@ -112,6 +112,7 @@ async def screen_run():
         status = screen.query_one(StatusBlock)
         result = screen.query_one(ResultBlock)
         cameras = screen.query_one(CamerasBlock)
+        distance = screen.query_one(DistanceBlock)
 
         print("=== AFTER SEQUENCE (threaded inspection) ===")
         print("StatusBlock state:", status._state)
@@ -121,6 +122,38 @@ async def screen_run():
         print("ResultBlock children:", await _render_children(result, pilot))
         print("CamerasBlock statuses:", cameras._statuses)
         print("_last_times (should be populated):", cameras._last_times)
+
+        # Inspect block geometry to confirm compact top row + centered distance
+        print("=== GEOMETRY ===")
+        print("CamerasBlock region:", cameras.region, "size:", cameras.size)
+        print("DistanceBlock region:", distance.region, "size:", distance.size)
+        dg = distance.query_one("Digits")
+        print("Digits region:", dg.region, "(within DistanceBlock)")
+        print("ResultBlock size:", result.size)
+        # horizontal + vertical centering check
+        d = distance.region
+        g = dg.region
+        h_off = (g.x - d.x)
+        v_off = (g.y - d.y)
+        print(f"Digits offset within block: x={h_off}, y={v_off}; "
+              f"block w={d.width} h={d.height}; digits w={g.width} h={g.height}")
+        cx = (g.width / 2 + h_off) / d.width
+        cy = (g.height / 2 + v_off) / d.height
+        print(f"center ratios (want ~0.5,0.5): cx={cx:.2f} cy={cy:.2f}")
+
+
+def _svg_to_rows(svg):
+    """Roughly reconstruct terminal rows from a Textual SVG screenshot."""
+    import re
+    rows = {}
+    # <text ... y="44.4" ...>content</text>
+    for m in re.finditer(r'<text[^>]*\by="([\d.]+)"[^>]*>([^<]*)</text>', svg):
+        y = int(float(m.group(1)))
+        rows.setdefault(y, []).append(m.group(2))
+    out = []
+    for y in sorted(rows):
+        out.append("".join(rows[y]))
+    return out
 
 
 async def resultblock_run():
