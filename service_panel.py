@@ -104,6 +104,7 @@ class StatusBlock(Static):
 
     _state = None
     _started = None
+    _done_duration = None
 
     def on_mount(self):
         self.set_interval(0.1, self._tick)
@@ -111,6 +112,11 @@ class StatusBlock(Static):
     def set_state(self, key, started_at):
         self._state = key
         self._started = started_at
+        if key == "DONE" and started_at is not None:
+            # фиксируем длительность анализа один раз (не растёт при тике)
+            self._done_duration = time.time() - started_at
+        else:
+            self._done_duration = None
         self._tick()
 
     def _tick(self):
@@ -132,6 +138,8 @@ class StatusBlock(Static):
             return f"{label} {remaining:.1f}с"
         if key == "ANALYZING":
             return f"{label} {elapsed:.1f}с"
+        if key == "DONE" and self._done_duration is not None:
+            return f"{label} {self._done_duration:.1f}с"
         if key == "COOLDOWN":
             remaining = max(0.0, Settings.cooldown - elapsed)
             return f"{label} {remaining:.1f}с"

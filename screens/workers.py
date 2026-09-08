@@ -134,6 +134,7 @@ def inspection_loop(on_status, on_distance, on_camera, on_result, stop):
                     else:
                         state = "ANALYZING"
                         state_start = time.time()
+                        analysis_start = state_start
                         on_status("ANALYZING", state_start)
                         on_result(None, None)  # сигнал: анализ начался (спиннер)
                         try:
@@ -143,7 +144,9 @@ def inspection_loop(on_status, on_distance, on_camera, on_result, stop):
                             on_result(None, str(e))
                         state = "DONE"
                         state_start = time.time()
-                        on_status("DONE", None)
+                        # передаём время начала анализа, чтобы блок показал
+                        # "Готово <ск-ко занял анализ>"
+                        on_status("DONE", analysis_start)
 
             elif state == "LOST":
                 if dist <= threshold:

@@ -229,7 +229,36 @@ async def distance_center_run():
                       f"bold={bold} sample={sample[:40]} {'OK' if ok else 'CHECK'}")
 
 
+async def status_done_run():
+    """Verify StatusBlock shows 'Готово <длительность>с' (fixed, not growing)."""
+    import time as _t
+    from service_panel import StatusBlock
+
+    async with App().run_test() as pilot:
+        sb = StatusBlock()
+        await pilot.app.mount(sb)
+        await pilot.pause()
+
+        # simulate: analysis started 3.2s ago, then DONE
+        start = _t.time() - 3.2
+        sb.set_state("ANALYZING", start)
+        await pilot.pause()
+        print("ANALYZING text:", repr(sb._render_text()))
+
+        sb.set_state("DONE", start)
+        await pilot.pause()
+        t1 = sb._render_text()
+        await pilot.pause(0.3)  # time should NOT keep growing after _done fixed
+        t2 = sb._render_text()
+        print("DONE text:", repr(t1), "| stable after 0.3s:", repr(t2))
+
+        # DONE without started_at -> just 'Готово'
+        sb.set_state("DONE", None)
+        print("DONE(no time) text:", repr(sb._render_text()))
+
+
 if __name__ == "__main__":
     asyncio.run(screen_run())
     asyncio.run(resultblock_run())
     asyncio.run(distance_center_run())
+    asyncio.run(status_done_run())
