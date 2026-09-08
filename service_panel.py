@@ -9,8 +9,9 @@ CamerasBlock умеет снимать сам: при монтировании �
 
 import time
 
+from rich.table import Table
 from rich.text import Text
-from textual.widgets import DataTable, Digits, Static
+from textual.widgets import Digits, Static
 
 from camera_capture import CAMERAS, capture_photos
 from screens import workers
@@ -75,45 +76,59 @@ class CamerasBlock(Static):
         self.auto_capture = auto_capture
         self._starts = {}   # cam -> monotonic time начала съёмки
         self._durations = {}  # cam -> секунды последней съёмки
+        self._statuses = {}   # cam -> (status, detail)
         super().__init__()
         self.border_title = "Камеры"
         self.styles.border = ("round", "cyan")
         self.styles.border_title_align = "center"
         self.styles.padding = (1, 1)
 
-    def compose(self):
-        yield DataTable()
-
     def on_mount(self):
-        table = self.query_one(DataTable)
-        table.cursor_type = "none"
-        self.col_num = table.add_column("#", width=4)
-        self.col_status = table.add_column("Status", width=60)
-        self.col_last = table.add_column("Last time", width=14)
-        self.col_time = table.add_column("Time", width=14)
-        self.rows = {}
         for cam_idx in CAMERAS:
-            self.rows[cam_idx] = table.add_row(
-                str(cam_idx),
-                Text("OK", style=self.STATUS_STYLE["OK"]),
-                "—", "—",
-            )
+            self._statuses[cam_idx] = ("OK", "")
+        self._redraw()
         if self.auto_capture:
             self.run_worker(self._capture, thread=True)
+
+    def _redraw(self):
+        table = Table(expand=True, show_edge=False, pad_edge=False)
+        table.add_column("#", justify="left", ratio=1)
+        table.add_column("Status", ratio=8)
+        table.add_column("Last time", justify="right", ratio=2)
+        table.add_column("Time", justify="right", ratio=2)
+
+        for cam_idx in CAMERAS:
+            status, detail = self._statuses.get(cam_idx, ("OK", ""))
+            text = status if not detail else f"{status}: {detail}"
+            style = self.STATUS_STYLE.get(status, "bold green")
+            last = "—"
+            if cam_idx in self._durations:
+                last = f"{self._durations[cam_idx]:.1f} c"
+            duration = self._starts.get(cam_idx)
+            time_val = "—"
+            if duration is not None:
+                time_val = f"{time.monotonic() - duration:.1f} c"
+            table.add_row(
+                str(cam_idx),
+                Text(text, style=style),
+                last,
+                time_val,
+            )
+        self.update(table)
 
     def _capture(self):
         workers.cameras_capture(self._on_status)
 
     def restart(self):
         """Перезапустить съёмку: прошлые Time уходят в Last time."""
-        table = self.query_one(DataTable)
+        table_prev = self._durations
+        self._durations = {}
+        self._statuses = {cam: ("OK", "") for cam in CAMERAS}
         for cam_idx in CAMERAS:
-            duration = self._durations.pop(cam_idx, None)
-            table.update_cell(self.rows[cam_idx], self.col_last,
-                              f"{duration:.1f} c" if duration is not None else "—")
-            table.update_cell(self.rows[cam_idx], self.col_time, "—")
-            table.update_cell(self.rows[cam_idx], self.col_status,
-                              Text("OK", style=self.STATUS_STYLE["OK"]))
+            duration = table_prev.get(cam_idx)
+            if duration is not None:
+                self._durations[cam_idx] = duration
+        self._redraw()
         self.run_worker(self._capture, thread=True)
 
     def _on_status(self, cam_idx, status, detail):
@@ -123,18 +138,15 @@ class CamerasBlock(Static):
             pass
 
     def _apply_status(self, cam_idx, status, detail):
-        table = self.query_one(DataTable)
         if status == "TAKING":
             self._starts[cam_idx] = time.monotonic()
-            text = "TAKING"
+            self._statuses[cam_idx] = (status, detail)
         else:
             start = self._starts.pop(cam_idx, None)
             duration = (time.monotonic() - start) if start is not None else 0.0
             self._durations[cam_idx] = duration
-            table.update_cell(self.rows[cam_idx], self.col_time, f"{duration:.1f} c")
-            text = status if not detail else f"{status}: {detail}"
-        table.update_cell(self.rows[cam_idx], self.col_status,
-                          Text(text, style=self.STATUS_STYLE[status]))
+            self._statuses[cam_idx] = (status, detail)
+        self._redraw()
 
 
 class ServicePanel(Static):
