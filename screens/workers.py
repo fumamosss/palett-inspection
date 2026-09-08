@@ -16,17 +16,6 @@ from llm import analyze_photos
 from settings import Settings
 
 
-def _wait_clear(on_update, get_dist):
-    """Ждать, пока перед датчиком никто не стоит."""
-    on_update(None, "Ожидание очищения пространства", None)
-    while True:
-        dist = get_dist()
-        if dist is not None and dist > Settings.threshold:
-            on_update(dist, "Готов к работе", None)
-            return
-        time.sleep(0.2)
-
-
 def distance_loop(on_update, stop):
     """Непрерывно читать дальномер. stop() == True — выход."""
     if not open_distance():
@@ -42,8 +31,9 @@ def distance_loop(on_update, stop):
 
 def cameras_capture(on_update):
     """Снять по фото с каждой камеры. on_update(cam_idx, status, detail):
-    status: TAKING / SAVED / ERROR."""
+    status: TAKING / SAVED / ERROR. Возвращает список сохранённых путей."""
     os.makedirs(CAPTURE_DIR, exist_ok=True)
+    paths = []
 
     for cam_idx in CAMERAS:
         on_update(cam_idx, "TAKING", "")
@@ -74,65 +64,126 @@ def cameras_capture(on_update):
             continue
 
         on_update(cam_idx, "SAVED", path)
+        paths.append(path)
         time.sleep(CAPTURE_DELAY)
 
+    return paths
 
-def inspection_loop(on_update, stop):
-    """Полный цикл инспекции: дальномер -> фото -> нейронка."""
+
+def inspection_loop(on_status, on_distance, on_camera, on_result, stop):
+    """Полный цикл инспекции: дальномер -> фото -> нейронка.
+
+    Колбэки (вызываются для UI):
+      on_status(state_key, started_at) — состояние инспекции
+      on_distance(dist)                — текущая дистанция
+      on_camera(cam_idx, status, detail) — статус камеры (TAKING/SAVED/ERROR)
+      on_result(result | None, error | None) — результат ИИ или текст ошибки
+    """
     threshold = Settings.threshold
     detect_time = Settings.detect_time
     cooldown = Settings.cooldown
+    START_TIMEOUT = 2.0  # сек. сколько показывать "Объект пропал" перед ожиданием
 
     if not open_distance():
-        on_update(None, "Дальномер не найден", None)
+        on_result(None, "Дальномер не найден")
         return
     try:
-        _wait_clear(on_update, get_distance)
-
-        state = "IDLE"
+        state = "WAIT"
         state_start = time.time()
+        on_status("WAIT", None)
+        last_dist_sent = 0.0
 
         while not stop():
             dist = get_distance()
             now = time.time()
 
+            if dist is not None and now - last_dist_sent >= 0.2:
+                last_dist_sent = now
+                on_distance(dist)
+
             if dist is None:
-                time.sleep(0.5)
+                time.sleep(0.05)
                 continue
 
             elapsed = now - state_start
 
-            if state == "IDLE":
+            if state == "WAIT":
                 if dist <= threshold:
-                    state = "DETECT"
+                    state = "FOUND"
                     state_start = now
-                    on_update(dist, "DETECT", None)
+                    on_status("FOUND", state_start)
 
-            elif state == "DETECT":
+            elif state == "FOUND":
                 if dist > threshold:
-                    state = "IDLE"
+                    # объект исчез до подтверждения
+                    state = "LOST"
                     state_start = now
-                    on_update(dist, "IDLE", None)
+                    on_status("LOST", None)
                 elif elapsed >= detect_time:
-                    on_update(dist, "Съёмка...", None)
-                    photos = capture_photos()
-                    on_update(dist, "Анализ...", photos)
-                    if photos:
-                        try:
-                            analyze_photos(photos)
-                            on_update(dist, "Готово", photos)
-                        except Exception as e:
-                            on_update(dist, f"Ошибка нейронки: {e}", photos)
+                    # объект держался достаточно долго — снимаем
+                    state = "FIX"
+                    state_start = now
+                    on_status("FIX", None)
+                    photos = cameras_capture(on_camera)
+                    if not photos:
+                        on_result(None, "Фото не сохранены")
+                        state = "DONE"
+                        state_start = time.time()
+                        on_status("DONE", None)
                     else:
-                        on_update(dist, "Фото не сохранены", None)
+                        state = "ANALYZING"
+                        state_start = time.time()
+                        on_status("ANALYZING", state_start)
+                        on_result(None, None)  # сигнал: анализ начался (спиннер)
+                        try:
+                            result = analyze_photos(photos)
+                            on_result(result, None)
+                        except Exception as e:
+                            on_result(None, str(e))
+                        state = "DONE"
+                        state_start = time.time()
+                        on_status("DONE", None)
+
+            elif state == "LOST":
+                if dist <= threshold:
+                    # вернулся — снова подтверждаем
+                    state = "FOUND"
+                    state_start = now
+                    on_status("FOUND", state_start)
+                elif elapsed >= START_TIMEOUT:
+                    state = "WAIT"
+                    state_start = now
+                    on_status("WAIT", None)
+
+            elif state == "FIX":
+                pass  # фото снимаются в FOUND; сюда не приходим
+
+            elif state == "ANALYZING":
+                pass  # ждём завершения analyze_photos (блокирующий вызов)
+
+            elif state == "DONE":
+                if dist > threshold:
                     state = "COOLDOWN"
                     state_start = now
+                    on_status("COOLDOWN", state_start)
 
             elif state == "COOLDOWN":
-                if dist > threshold and elapsed >= cooldown:
-                    state = "IDLE"
+                if dist <= threshold:
+                    # объект вернулся слишком быстро
+                    state = "TOO_FAST"
                     state_start = now
-                    on_update(dist, "IDLE", None)
+                    on_status("TOO_FAST", None)
+                elif elapsed >= cooldown:
+                    state = "WAIT"
+                    state_start = now
+                    on_status("WAIT", None)
+
+            elif state == "TOO_FAST":
+                if dist > threshold:
+                    # отодвинули — снова ждём готовность
+                    state = "COOLDOWN"
+                    state_start = now
+                    on_status("COOLDOWN", state_start)
 
             time.sleep(0.05)
 

@@ -1,7 +1,7 @@
 """Общие блоки-виджеты для экранов.
 
-Каждый блок отдельный виджет: DistanceBlock, StateBlock, CamerasBlock.
-Экраны делают yield нужных виджетов.
+Каждый блок отдельный виджет: DistanceBlock, StatusBlock, CamerasBlock,
+ResultBlock. Экраны делают yield нужных виджетов.
 
 CamerasBlock умеет снимать сам: при монтировании запускает съёмку и
 обновляет свою таблицу. Параметр auto_capture=False отключает это.
@@ -12,7 +12,7 @@ import time
 from rich import box
 from rich.table import Table
 from rich.text import Text
-from textual.widgets import Digits, Static
+from textual.widgets import Digits, LoadingIndicator, Static
 
 from camera_capture import CAMERAS, capture_photos
 from screens import workers
@@ -57,12 +57,139 @@ class DistanceBlock(Static):
             pass
 
 
-class StateBlock(Static):
-    def __init__(self):
-        super().__init__("Состояние: —")
+class StatusBlock(Static):
+    """Текущее состояние инспекции (без рамки).
 
-    def set_state(self, state):
-        self.update(f"Состояние: {state}")
+    set_state(key, started_at): key — одно из WAIT/FOUND/FIX/ANALYZING/
+    DONE/COOLDOWN/TOO_FAST/LOST. started_at — время начала состояния
+    (monotonic), для состояний с обратным отсчётом/живым таймером.
+    """
+
+    _LABELS = {
+        "WAIT": "Ожидаем объект",
+        "FOUND": "Объект найден",
+        "FIX": "Фиксируем",
+        "ANALYZING": "Анализируем",
+        "DONE": "Готово",
+        "COOLDOWN": "Ждем готовность",
+        "TOO_FAST": "Слишком быстро, отодвиньте объект",
+        "LOST": "Объект пропал",
+    }
+    _STYLES = {
+        "WAIT": "grey",
+        "FOUND": "yellow",
+        "FIX": "yellow",
+        "ANALYZING": "yellow",
+        "DONE": "green",
+        "COOLDOWN": "yellow",
+        "TOO_FAST": "red",
+        "LOST": "red",
+    }
+
+    def __init__(self):
+        super().__init__()
+        self._state = None
+        self._started = None
+        self._last_dist_changed = None
+
+    def on_mount(self):
+        self.set_interval(0.1, self._tick)
+
+    def set_state(self, key, started_at):
+        self._state = key
+        self._started = started_at
+        self._tick()
+
+    def _tick(self):
+        text = self._render_text()
+        style = self._STYLES.get(self._state, "grey")
+        self.update(Text(text, style=style))
+
+    def _render_text(self):
+        key = self._state
+        if key is None:
+            return "—"
+        label = self._LABELS.get(key, key)
+        elapsed = 0.0
+        if self._started is not None:
+            elapsed = time.time() - self._started
+
+        if key == "FOUND":
+            remaining = max(0.0, Settings.detect_time - elapsed)
+            return f"{label} {remaining:.1f}с"
+        if key == "ANALYZING":
+            return f"{label} {elapsed:.1f}с"
+        if key == "COOLDOWN":
+            remaining = max(0.0, Settings.cooldown - elapsed)
+            return f"{label} {remaining:.1f}с"
+        return label
+
+
+class ResultBlock(Static):
+    """Блок "Анализ": результат ИИ + спиннер при ожидании / ошибка."""
+
+    def __init__(self):
+        super().__init__()
+        self.border_title = "Анализ"
+        self.styles.border = ("solid", "cyan")
+        self.styles.border_title_align = "center"
+        self.styles.padding = (1, 2)
+
+        self._front = "—"
+        self._side = "—"
+        self._conf = "—"
+        self._reason = "—"
+        self._error = None
+        self._analyzing = False
+
+    def compose(self):
+        yield LoadingIndicator(id="result_loading")
+        yield Static(self._body(), id="result_body")
+        yield Static("", id="result_error")
+
+    def on_mount(self):
+        self.query_one("#result_loading").display = False
+        self._render()
+
+    def set_analyzing(self, on):
+        self._analyzing = on
+        self._render()
+
+    def set_result(self, result):
+        self._analyzing = False
+        self._error = None
+        self._front = result.get("angle_front_deg", "—")
+        self._side = result.get("angle_side_deg", "—")
+        self._conf = result.get("confidence", "—")
+        self._reason = result.get("reason", "—")
+        self._render()
+
+    def set_error(self, message):
+        self._analyzing = False
+        self._error = message
+        self._render()
+
+    def _body(self):
+        return (f"Спереди: {self._front}°\n"
+                f"Сбоку: {self._side}°\n"
+                f"Уверенность: {self._conf}\n"
+                f"Комментарий: {self._reason}")
+
+    def _render(self):
+        if self._analyzing:
+            self.query_one("#result_loading").display = True
+            self.query_one("#result_body").display = False
+            self.query_one("#result_error").display = False
+        elif self._error is not None:
+            self.query_one("#result_loading").display = False
+            self.query_one("#result_body").display = False
+            self.query_one("#result_error").display = True
+            self.query_one("#result_error").update(Text(self._error, style="bold red"))
+        else:
+            self.query_one("#result_loading").display = False
+            self.query_one("#result_body").display = True
+            self.query_one("#result_error").display = False
+            self.query_one("#result_body").update(self._body())
 
 
 class CamerasBlock(Static):
@@ -156,19 +283,3 @@ class CamerasBlock(Static):
             self._durations[cam_idx] = duration
             self._statuses[cam_idx] = (status, detail)
         self._redraw()
-
-
-class ServicePanel(Static):
-    def compose(self):
-        yield DistanceBlock(auto_loop=False)
-        yield StateBlock()
-        yield CamerasBlock(auto_capture=False)
-
-    def set_distance(self, dist):
-        self.query_one(DistanceBlock).set_distance(dist)
-
-    def set_state(self, state):
-        self.query_one(StateBlock).set_state(state)
-
-    def set_cam_status(self, cam_idx, status, detail=""):
-        self.query_one(CamerasBlock)._apply_status(cam_idx, status, detail)
