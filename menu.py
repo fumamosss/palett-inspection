@@ -13,8 +13,6 @@ from screens.inspection_screen import InspectionScreen
 
 
 class MainMenu(Screen):
-    BINDINGS = [("q", "quit", "Выход")]
-
     def compose(self):
         yield OptionList(
             Option("Запустить инспекцию", id="run"),
@@ -42,6 +40,7 @@ class MainMenu(Screen):
 
 class MenuApp(App):
     TITLE = "Pallet Inspection"
+    BINDINGS = [("q", "quit", "Выход")]
 
     def on_mount(self):
         Settings.load()
