@@ -89,7 +89,7 @@ class CamerasBlock(Static):
         for cam_idx in CAMERAS:
             self._statuses[cam_idx] = ("OK", "")
         self._redraw()
-        self.set_interval(0.5, self._tick)
+        self.set_interval(0.1, self._tick)
         if self.auto_capture:
             self.run_worker(self._capture, thread=True)
 
