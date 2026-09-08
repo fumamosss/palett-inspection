@@ -24,7 +24,7 @@ class DistanceBlock(Static):
         self.stopped = True
         super().__init__()
         self.border_title = "Дистанция"
-        self.styles.border = ("round", "blue")
+        self.styles.border = ("solid", "cyan")
         self.styles.border_title_align = "center"
         self.styles.padding = (1, 2)
         self.styles.width = 30
@@ -81,8 +81,8 @@ class CamerasBlock(Static):
         self._statuses = {}   # cam -> (status, detail)
         super().__init__()
         self.border_title = "Камеры"
-        self.styles.border = ("round", "cyan")
-        self.styles.border_title_align = "center"
+        self.styles.border = ("solid", "cyan")
+        self.styles.border_title_align = "left"
         self.styles.padding = (1, 1)
 
     def on_mount(self):
