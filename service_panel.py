@@ -8,7 +8,7 @@ PhotosBlock умеет снимать сам: при монтировании з
 (например, внутри ServicePanel, где съёмкой управляет инспекция).
 """
 
-from textual.widgets import Static
+from textual.widgets import Digits, Static
 
 from camera_capture import capture_photos
 from screens import workers
@@ -18,12 +18,15 @@ class DistanceBlock(Static):
     def __init__(self, auto_loop=True):
         self.auto_loop = auto_loop
         self.stopped = True
-        super().__init__("—")
+        super().__init__()
         self.border_title = "Дистанция"
         self.styles.border = ("round", "blue")
         self.styles.border_title_align = "center"
         self.styles.padding = (1, 2)
-        self.styles.width = 20
+        self.styles.width = 30
+
+    def compose(self):
+        yield Digits("—")
 
     def on_mount(self):
         if self.auto_loop:
@@ -37,14 +40,14 @@ class DistanceBlock(Static):
         workers.distance_loop(self._update, lambda: self.stopped)
 
     def _update(self, dist):
-        self._set_text("нет данных" if dist is None else str(dist))
+        self._set_value("нет данных" if dist is None else str(dist))
 
     def set_distance(self, dist):
-        self.update("нет данных" if dist is None else str(dist))
+        self._set_value("нет данных" if dist is None else str(dist))
 
-    def _set_text(self, text):
+    def _set_value(self, text):
         try:
-            self.app.call_from_thread(self.update, text)
+            self.app.call_from_thread(self.query_one(Digits).update, text)
         except Exception:
             # экран уже закрыт — нечего обновлять
             pass
