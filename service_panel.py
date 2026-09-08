@@ -16,6 +16,7 @@ from textual.widgets import Digits, LoadingIndicator, Static
 
 from camera_capture import CAMERAS, capture_photos
 from screens import workers
+from settings import Settings
 
 
 class DistanceBlock(Static):
