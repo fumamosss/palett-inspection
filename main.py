@@ -18,7 +18,7 @@ from llm import analyze_photos
 # ============================================
 # НАСТРОЙКИ
 # ============================================
-DISTANCE_THRESHOLD = 50  # мм. Если <= этого значения — объект перед датчиком.
+DISTANCE_THRESHOLD = 50  # см. Если <= этого значения — объект перед датчиком.
 DETECT_TIME = 1.5         # сек. Объект должен быть ближе порога столько, чтобы считать палетту.
 COOLDOWN_TIME = 2.0       # сек. После фотки — объект должен уйти на > порога столько, чтобы ловить новый.
 
@@ -30,7 +30,7 @@ COOLDOWN = "COOLDOWN"
 
 def inspect_pallet():
     """Основной цикл проверки с debounce."""
-    print(f"Порог: {DISTANCE_THRESHOLD} мм | Детект: {DETECT_TIME}с | Кулдаун: {COOLDOWN_TIME}с")
+    print(f"Порог: {DISTANCE_THRESHOLD} см | Детект: {DETECT_TIME}с | Кулдаун: {COOLDOWN_TIME}с")
     print("Инициализация дальномера...")
 
     if not open_distance():
@@ -68,7 +68,7 @@ def inspect_pallet():
                     # Объект появился — запоминаем время, переходим в DETECT
                     state = DETECT
                     state_start = now
-                    print(f"[IDLE→DETECT] объект на {dist} мм")
+                    print(f"[IDLE→DETECT] объект на {dist} см")
                 # иначе — стоим в IDLE, ждём
 
             elif state == DETECT:
@@ -76,10 +76,10 @@ def inspect_pallet():
                     # Объект пропал до детекта — отмена
                     state = IDLE
                     state_start = now
-                    print(f"[DETECT→IDLE] объект пропал ({dist} мм)")
+                    print(f"[DETECT→IDLE] объект пропал ({dist} см)")
                 elif elapsed >= DETECT_TIME:
                     # Объект держался достаточно долго — фоткаем!
-                    print(f"[DETECT] палетта подтверждена ({dist} мм) — снимаем")
+                    print(f"[DETECT] палетта подтверждена ({dist} см) — снимаем")
                     photos = capture_photos()
                     if photos:
                         print(f"  Сохранены: {photos}")

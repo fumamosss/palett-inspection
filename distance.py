@@ -4,7 +4,7 @@
   open_distance() -> bool
     Открыть CH341 и инициализировать VL53L1X.
   get_distance() -> int | None
-    Прочитать расстояние в мм (None = нет данных).
+    Прочитать расстояние в см (None = нет данных).
   close_distance()
     Закрыть CH341.
 """
