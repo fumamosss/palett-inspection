@@ -199,6 +199,12 @@ async def distance_center_run():
     """Verify DistanceBlock digits are centered (h+v) across values and widths."""
     from service_panel import DistanceBlock
     values = ["120", "7", "-42", "нет данных"]
+    # жирный шрифт DIGITS3X3_BOLD использует ┏┃┗ etc; обычный ╭│╰ etc
+    BOLD_STROKES = "┏┃┗┓╺╹┣━╸╻"
+    PLAIN_STROKES = "╭│╰╮╶╴╷├─╵"
+
+    from rich.console import Console
+    import io
 
     for width, height in [(100, 40), (120, 30), (80, 24)]:
         async with App().run_test(size=(width, height)) as pilot:
@@ -212,21 +218,15 @@ async def distance_center_run():
                 await pilot.pause()
                 cx, cy = _center_ratio(blk, dg)
                 ok = bool(cx and cy and abs(cx - 0.5) < 0.02 and abs(cy - 0.5) < 0.02)
-                # render the digits' own content to check internal text align
-                from rich.console import Console
-                import io
                 buf = io.StringIO()
                 Console(file=buf, width=24, force_terminal=False, color_system=None,
                         highlight=False).print(dg.render())
-                text = "".join(buf.getvalue().splitlines())
-                txt_stripped = text.strip()
-                inside = text.rstrip("\n")
-                left_pad = len(inside) - len(inside.lstrip())
-                right_pad = len(inside.rstrip()) - len(text[:len(inside.rstrip())])
-                print(f"  value={v!r:12} digits_region={dg.region} "
-                      f"text_align={dg.styles.text_align} "
-                      f"cx={cx:.2f} cy={cy:.2f} left_pad={left_pad} "
-                      f"{'OK' if ok else 'CHECK'}")
+                lines = buf.getvalue().splitlines()
+                sample = "|".join(l.strip() for l in lines)
+                bold = any(c in BOLD_STROKES for c in sample)
+                print(f"  value={v!r:12} text_align={dg.styles.text_align} "
+                      f"text_style={dg.styles.text_style} cx={cx:.2f} cy={cy:.2f} "
+                      f"bold={bold} sample={sample[:40]} {'OK' if ok else 'CHECK'}")
 
 
 if __name__ == "__main__":

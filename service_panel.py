@@ -36,9 +36,12 @@ class DistanceBlock(Static):
         yield Digits("—")
 
     def on_mount(self):
-        # Digits — виджет со своим контентом; без text-align:center цифры
-        # прижимаются влево даже если сам блок центрирует виджет.
-        self.query_one(Digits).styles.text_align = "center"
+        # Digits — виджет со своим контентом: без text-align:center цифры
+        # прижимаются влево, а text-style:bold включает насыщенный вариант
+        # шрифта (DIGITS3X3_BOLD) — цифры выглядят жирнее/заметнее.
+        digits = self.query_one(Digits)
+        digits.styles.text_align = "center"
+        digits.styles.text_style = "bold"
         if self.auto_loop:
             self.stopped = False
             self.run_worker(self._loop, thread=True)
