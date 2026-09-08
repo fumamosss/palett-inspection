@@ -3,7 +3,7 @@
 from textual.screen import Screen
 from textual.widgets import Footer
 
-from service_panel import ServicePanel
+from service_panel import DistanceBlock
 from screens import workers
 
 
@@ -11,18 +11,16 @@ class DistTestScreen(Screen):
     BINDINGS = [("escape", "back", "Назад")]
 
     def compose(self):
-        yield ServicePanel()
+        yield DistanceBlock()
         yield Footer()
 
     def on_mount(self):
         self.stopped = False
-        panel = self.query_one(ServicePanel)
+        block = self.query_one(DistanceBlock)
 
         def on_update(dist, state, photos):
             if dist is not None:
-                panel.set_distance(dist)
-            if state is not None:
-                panel.set_state(state)
+                block.set_distance(dist)
 
         self.run_worker(
             lambda: workers.distance_loop(on_update, lambda: self.stopped),
