@@ -4,10 +4,14 @@
 главном потоке (через app.call_from_thread) для обновления интерфейса.
 """
 
+import os
 import time
+from datetime import datetime
+
+import cv2
 
 from distance import open_distance, get_distance, close_distance
-from camera_capture import capture_photos
+from camera_capture import open_camera, CAMERAS, CAPTURE_DIR, READ_RETRIES, CAPTURE_DELAY
 from llm import analyze_photos
 from settings import Settings
 
@@ -36,14 +40,41 @@ def distance_loop(on_update, stop):
         close_distance()
 
 
-def camera_test(on_update, stop):
-    """Снять по фото со всех камер один раз."""
-    on_update(None, "Съёмка фото...", None)
-    photos = capture_photos()
-    if photos:
-        on_update(None, "Готово", photos)
-    else:
-        on_update(None, "Фото не сохранены", None)
+def cameras_capture(on_update):
+    """Снять по фото с каждой камеры. on_update(cam_idx, status, detail):
+    status: TAKING / SAVED / ERROR."""
+    os.makedirs(CAPTURE_DIR, exist_ok=True)
+
+    for cam_idx in CAMERAS:
+        on_update(cam_idx, "TAKING", "")
+
+        cap = open_camera(cam_idx)
+        if cap is None:
+            on_update(cam_idx, "ERROR", "не открылась")
+            time.sleep(CAPTURE_DELAY)
+            continue
+
+        for _ in range(READ_RETRIES):
+            cap.read()
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret or frame is None:
+            on_update(cam_idx, "ERROR", "кадр не прочитан")
+            time.sleep(CAPTURE_DELAY)
+            continue
+
+        filename = f"cam{cam_idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+        path = os.path.join(CAPTURE_DIR, filename)
+        try:
+            cv2.imwrite(path, frame)
+        except Exception as e:
+            on_update(cam_idx, "ERROR", str(e))
+            time.sleep(CAPTURE_DELAY)
+            continue
+
+        on_update(cam_idx, "SAVED", path)
+        time.sleep(CAPTURE_DELAY)
 
 
 def inspection_loop(on_update, stop):

@@ -3,14 +3,14 @@
 from textual.screen import Screen
 from textual.widgets import Footer
 
-from service_panel import PhotosBlock
+from service_panel import CamerasBlock
 
 
 class CamTestScreen(Screen):
     BINDINGS = [("escape", "back", "Назад")]
 
     def compose(self):
-        yield PhotosBlock()
+        yield CamerasBlock()
         yield Footer()
 
     def action_back(self):

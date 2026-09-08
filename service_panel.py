@@ -1,16 +1,18 @@
 """Общие блоки-виджеты для экранов.
 
-Каждый блок отдельный виджет: DistanceBlock, StateBlock, PhotosBlock.
+Каждый блок отдельный виджет: DistanceBlock, StateBlock, CamerasBlock.
 Экраны делают yield нужных виджетов.
 
-PhotosBlock умеет снимать сам: при монтировании запускает съёмку и
-обновляет свой текст. Параметр auto_capture=False отключает это
-(например, внутри ServicePanel, где съёмкой управляет инспекция).
+CamerasBlock умеет снимать сам: при монтировании запускает съёмку и
+обновляет свою таблицу. Параметр auto_capture=False отключает это.
 """
 
-from textual.widgets import Digits, Static
+from datetime import datetime
 
-from camera_capture import capture_photos
+from rich.text import Text
+from textual.widgets import DataTable, Digits, Static
+
+from camera_capture import CAMERAS, capture_photos
 from screens import workers
 
 
@@ -61,46 +63,72 @@ class StateBlock(Static):
         self.update(f"Состояние: {state}")
 
 
-class PhotosBlock(Static):
+class CamerasBlock(Static):
+    STATUS_STYLE = {
+        "OK": "bold green",
+        "TAKING": "bold yellow",
+        "SAVED": "bold green",
+        "ERROR": "bold red",
+    }
+
     def __init__(self, auto_capture=True):
         self.auto_capture = auto_capture
-        super().__init__("Фото: —")
+        super().__init__()
+        self.border_title = "Камеры"
+        self.styles.border = ("round", "cyan")
+        self.styles.border_title_align = "center"
+        self.styles.padding = (1, 1)
+
+    def compose(self):
+        yield DataTable()
 
     def on_mount(self):
+        table = self.query_one(DataTable)
+        table.cursor_type = "none"
+        self.col_num = table.add_column("#", width=4)
+        self.col_status = table.add_column("Status", width=18)
+        self.col_spacer = table.add_column("", width=20)
+        self.col_last = table.add_column("Last time", width=14)
+        self.col_time = table.add_column("Time", width=12)
+        self.rows = {}
+        for cam_idx in CAMERAS:
+            self.rows[cam_idx] = table.add_row(
+                str(cam_idx),
+                Text("OK", style=self.STATUS_STYLE["OK"]),
+                "", "—", "—",
+            )
+        self.set_interval(1.0, self._tick)
         if self.auto_capture:
             self.run_worker(self._capture, thread=True)
 
     def _capture(self):
-        self._set_text("Фото: съёмка...")
-        photos = capture_photos()
-        self._set_photos(photos)
+        workers.cameras_capture(self._on_status)
 
-    def _set_text(self, text):
+    def _on_status(self, cam_idx, status, detail):
         try:
-            self.app.call_from_thread(self.update, text)
+            self.app.call_from_thread(self._apply_status, cam_idx, status, detail)
         except Exception:
-            # exe уже закрыт экран — нечего обновлять
             pass
 
-    def set_photos(self, paths):
-        self._set_photos(paths)
+    def _apply_status(self, cam_idx, status, detail):
+        table = self.query_one(DataTable)
+        text = status if not detail else f"{status}: {detail}"
+        table.update_cell(self.rows[cam_idx], self.col_status, Text(text, style=self.STATUS_STYLE[status]))
+        now = datetime.now().strftime("%H:%M:%S")
+        table.update_cell(self.rows[cam_idx], self.col_last, now)
 
-    def _set_photos(self, paths):
-        if not paths:
-            self._set_text("Фото: не сохранены")
-        else:
-            joined = ", ".join(p.rsplit("\\", 1)[-1] for p in paths)
-            self._set_text(f"Фото: {joined}")
-
-    def set_photo_error(self, message):
-        self._set_text(f"Фото: {message}")
+    def _tick(self):
+        now = datetime.now().strftime("%H:%M:%S")
+        table = self.query_one(DataTable)
+        for cam_idx in CAMERAS:
+            table.update_cell(self.rows[cam_idx], self.col_time, now)
 
 
 class ServicePanel(Static):
     def compose(self):
         yield DistanceBlock(auto_loop=False)
         yield StateBlock()
-        yield PhotosBlock(auto_capture=False)
+        yield CamerasBlock(auto_capture=False)
 
     def set_distance(self, dist):
         self.query_one(DistanceBlock).set_distance(dist)
@@ -108,8 +136,5 @@ class ServicePanel(Static):
     def set_state(self, state):
         self.query_one(StateBlock).set_state(state)
 
-    def set_photos(self, paths):
-        self.query_one(PhotosBlock).set_photos(paths)
-
-    def set_photo_error(self, message):
-        self.query_one(PhotosBlock).set_photo_error(message)
+    def set_cam_status(self, cam_idx, status, detail=""):
+        self.query_one(CamerasBlock)._apply_status(cam_idx, status, detail)
