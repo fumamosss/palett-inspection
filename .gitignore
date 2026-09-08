@@ -12,3 +12,6 @@ __pycache__/
 # Системное
 .DS_Store
 Thumbs.db
+
+# AI
+.sisyphus
