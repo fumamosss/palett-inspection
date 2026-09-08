@@ -120,7 +120,8 @@ def inspection_loop(on_status, on_distance, on_camera, on_result, stop):
                     state_start = now
                     on_status("LOST", None)
                 elif elapsed >= detect_time:
-                    # объект держался достаточно долго — снимаем
+                    # объект держался достаточно долго. Снимаем синхронно;
+                    # блокирующий захват держит "Фиксируем" на экране.
                     state = "FIX"
                     state_start = now
                     on_status("FIX", None)
@@ -156,7 +157,8 @@ def inspection_loop(on_status, on_distance, on_camera, on_result, stop):
                     on_status("WAIT", None)
 
             elif state == "FIX":
-                pass  # фото снимаются в FOUND; сюда не приходим
+                # снимаем синхронно в FOUND; сюда не приходим пока идёт захват
+                pass
 
             elif state == "ANALYZING":
                 pass  # ждём завершения analyze_photos (блокирующий вызов)
