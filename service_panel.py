@@ -18,7 +18,12 @@ class DistanceBlock(Static):
     def __init__(self, auto_loop=True):
         self.auto_loop = auto_loop
         self.stopped = True
-        super().__init__("Дистанция: —")
+        super().__init__("—")
+        self.border_title = "Дистанция"
+        self.styles.border = ("round", "blue")
+        self.styles.border_title_align = "center"
+        self.styles.padding = (1, 2)
+        self.styles.width = 20
 
     def on_mount(self):
         if self.auto_loop:
@@ -32,12 +37,10 @@ class DistanceBlock(Static):
         workers.distance_loop(self._update, lambda: self.stopped)
 
     def _update(self, dist):
-        text = "нет данных" if dist is None else f"{dist} см"
-        self._set_text(f"Дистанция: {text}")
+        self._set_text("нет данных" if dist is None else str(dist))
 
     def set_distance(self, dist):
-        text = "нет данных" if dist is None else f"{dist} см"
-        self.update(f"Дистанция: {text}")
+        self.update("нет данных" if dist is None else str(dist))
 
     def _set_text(self, text):
         try:
