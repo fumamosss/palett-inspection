@@ -1,0 +1,5 @@
+{
+  "threshold": 50,
+  "detect_time": 1.5,
+  "cooldown": 2.0
+}

@@ -1,26 +1,22 @@
-"""Основная логика проверки палетты.
-
-Логика:
-  - Дальномер следит за расстоянием.
-  - Когда объект появляется (расстояние падает ниже порога) — камеры делают снимок.
-  - Одно фото за одно появление (не спамит).
+"""Точка входа: TUI-меню + операции.
 
 Запуск:  python main.py
-Выход:   Ctrl+C
+
+Меню возвращает код запускаемого действия через app.exit(код):
+  - "inspect"    -> inspect_pallet(): цикл проверки с debounce
+  - "dist_test"  -> run_distance_test(): показать расстояние в реальном времени
+  - "cam_test"   -> run_camera_test(): снять по фото со всех камер
+  - None         -> просто выход
+
+Настройки берутся из settings.Settings (файл settings.json).
 """
 
 import time
 
+from settings import Settings
 from distance import open_distance, get_distance, close_distance
 from camera_capture import capture_photos
 from llm import analyze_photos
-
-# ============================================
-# НАСТРОЙКИ
-# ============================================
-DISTANCE_THRESHOLD = 50  # см. Если <= этого значения — объект перед датчиком.
-DETECT_TIME = 1.5         # сек. Объект должен быть ближе порога столько, чтобы считать палетту.
-COOLDOWN_TIME = 2.0       # сек. После фотки — объект должен уйти на > порога столько, чтобы ловить новый.
 
 # Состояния
 IDLE = "IDLE"
@@ -30,7 +26,11 @@ COOLDOWN = "COOLDOWN"
 
 def inspect_pallet():
     """Основной цикл проверки с debounce."""
-    print(f"Порог: {DISTANCE_THRESHOLD} см | Детект: {DETECT_TIME}с | Кулдаун: {COOLDOWN_TIME}с")
+    threshold = Settings.threshold
+    detect_time = Settings.detect_time
+    cooldown = Settings.cooldown
+
+    print(f"Порог: {threshold} см | Детект: {detect_time}с | Кулдаун: {cooldown}с")
     print("Инициализация дальномера...")
 
     if not open_distance():
@@ -42,7 +42,7 @@ def inspect_pallet():
     print("Ожидание очищения пространства...", end="", flush=True)
     while True:
         dist = get_distance()
-        if dist is not None and dist > DISTANCE_THRESHOLD:
+        if dist is not None and dist > threshold:
             print(f" OK ({dist})")
             break
         print(".", end="", flush=True)
@@ -64,7 +64,7 @@ def inspect_pallet():
             elapsed = now - state_start
 
             if state == IDLE:
-                if dist <= DISTANCE_THRESHOLD:
+                if dist <= threshold:
                     # Объект появился — запоминаем время, переходим в DETECT
                     state = DETECT
                     state_start = now
@@ -72,12 +72,12 @@ def inspect_pallet():
                 # иначе — стоим в IDLE, ждём
 
             elif state == DETECT:
-                if dist > DISTANCE_THRESHOLD:
+                if dist > threshold:
                     # Объект пропал до детекта — отмена
                     state = IDLE
                     state_start = now
                     print(f"[DETECT→IDLE] объект пропал ({dist} см)")
-                elif elapsed >= DETECT_TIME:
+                elif elapsed >= detect_time:
                     # Объект держался достаточно долго — фоткаем!
                     print(f"[DETECT] палетта подтверждена ({dist} см) — снимаем")
                     photos = capture_photos()
@@ -93,10 +93,10 @@ def inspect_pallet():
                         print("  Фото не сохранены")
                     state = COOLDOWN
                     state_start = now
-                    print(f"[DETECT→COOLDOWN] кулдаун {COOLDOWN_TIME}с")
+                    print(f"[DETECT→COOLDOWN] кулдаун {cooldown}с")
 
             elif state == COOLDOWN:
-                if dist > DISTANCE_THRESHOLD and elapsed >= COOLDOWN_TIME:
+                if dist > threshold and elapsed >= cooldown:
                     # Объект ушёл достаточно долго — готовы ловить новый
                     state = IDLE
                     state_start = now
@@ -110,5 +110,53 @@ def inspect_pallet():
         close_distance()
 
 
+def run_distance_test():
+    """Показать расстояние с дальномера в реальном времени. Ctrl+C — выход."""
+    print("Инициализация дальномера...")
+    if not open_distance():
+        print("Дальномер не найден. Проверьте подключение.")
+        return
+    print("Дальномер готов. Ctrl+C — выход.\n")
+
+    try:
+        while True:
+            dist = get_distance()
+            if dist is None:
+                print("нет данных")
+            else:
+                print(f"расстояние: {dist} см")
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\nОстановка.")
+    finally:
+        close_distance()
+
+
+def run_camera_test():
+    """Снять по одному фото с каждой камеры и показать пути."""
+    print("Съёмка фото...")
+    photos = capture_photos()
+    if photos:
+        print(f"Сохранены: {photos}")
+    else:
+        print("Фото не сохранены")
+
+
+def run_action(action):
+    """Запустить выбранное в меню действие."""
+    if action == "inspect":
+        inspect_pallet()
+    elif action == "dist_test":
+        run_distance_test()
+    elif action == "cam_test":
+        run_camera_test()
+
+
+def main():
+    from menu import MenuApp
+
+    run_action(MenuApp().run())
+
+
 if __name__ == "__main__":
-    inspect_pallet()
+    main()
