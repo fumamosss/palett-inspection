@@ -1,6 +1,6 @@
 from textual.app import App
 from textual.screen import Screen
-from textual.widgets import OptionList, Footer, Input
+from textual.widgets import OptionList, Footer, Input, Label
 from textual.widgets.option_list import Option
 
 
@@ -9,6 +9,13 @@ class Settings:
     threshold = 50      # порог расстояния 
     detect_time = 1.5   # сколько времени должен находиться объект на стенде для запуска анализа
     cooldown = 2.0      # сколько времени стенд должен пустовать для готовности к следующему объекту
+
+
+SETTING_DESCRIPTIONS = {
+    "threshold": "Расстояние в см, ближе которого датчик считает, что объект появился на стенде.",
+    "detect": "Сколько секунд объект должен непрерывно стоять на стенде, чтобы запустился анализ.",
+    "cooldown": "Сколько секунд стенд должен пустовать, чтобы система была готова к следующему объекту.",
+}
 
 
 # ------------------- экран настроек -------------------
@@ -21,11 +28,16 @@ class SettingsScreen(Screen):
             Option(f"Время детекта: {Settings.detect_time} сек", id="detect"),
             Option(f"Кулдаун: {Settings.cooldown} сек", id="cooldown"),
         )
+        yield Label("", id="setting_desc")
         yield Input(placeholder="значение", id="value_input")
         yield Footer()
 
     def on_mount(self):
         self.query_one("#value_input").display = False
+        
+    def on_option_list_option_highlighted(self, event):
+        label = self.query_one('#setting_desc')
+        label.update(SETTING_DESCRIPTIONS.get(event.option_id, ""))
 
     def on_option_list_option_selected(self, event):
         self.editing = event.option_id
@@ -46,7 +58,6 @@ class SettingsScreen(Screen):
         try:
             value = float(event.value)
         except ValueError:
-            self.bell()
             self.query_one("#value_input").value = ""
             return
         if self.editing == "threshold":
